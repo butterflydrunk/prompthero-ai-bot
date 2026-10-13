@@ -1,0 +1,259 @@
+{
+  "name": "PromptHero Telegram Bot with AI",
+  "nodes": [
+    {
+      "parameters": {
+        "updates": [
+          "message"
+        ]
+      },
+      "id": "22ff067e-1234-4a25-9dfc-5b32f1a603c4",
+      "name": "Telegram Trigger",
+      "type": "n8n-nodes-base.telegramTrigger",
+      "typeVersion": 1,
+      "position": [
+        220,
+        240
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "string": [
+            {
+              "value1": "={{ $json.message.text }}",
+              "operation": "contains",
+              "value2": "prompthero.com/prompt"
+            }
+          ]
+        }
+      },
+      "id": "e67fa958-5678-4db5-b8c1-12c8b09322a1",
+      "name": "If URL is PromptHero",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 1,
+      "position": [
+        440,
+        240
+      ]
+    },
+    {
+      "parameters": {
+        "url": "={{ $json.message.text.match(/(https?:\\/\\/[^\\s]+)/)[0] }}",
+        "options": {
+          "redirect": {
+            "redirect": {
+              "maxRedirects": 5
+            }
+          }
+        }
+      },
+      "id": "673f4e91-9012-4c6e-82d2-8b45a27891d2",
+      "name": "Fetch HTML",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        660,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "extractionValues": {
+          "values": [
+            {
+              "key": "video_url",
+              "cssSelector": "meta[property=\"og:video\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            },
+            {
+              "key": "description",
+              "cssSelector": "meta[name=\"description\"]",
+              "returnValue": "attribute",
+              "attribute": "content"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2a8d11e5-3456-47b2-a4f7-33a59e9c06b3",
+      "name": "HTML Extract",
+      "type": "n8n-nodes-base.html",
+      "typeVersion": 1,
+      "position": [
+        880,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "let desc = $input.item.json.description || \"\";\n\n// Убираем префикс вида \"Grok Imagine Video v1 prompt · \\\"\"\n// И суффикс вида \"\\\". Create amazing...\"\nlet promptText = desc;\nconst prefixMatch = desc.match(/prompt · \"(.*?)\"\\. Create amazing/is);\nif (prefixMatch && prefixMatch[1]) {\n  promptText = prefixMatch[1];\n} else {\n  // Фолбэк\n  promptText = desc.replace(/^.*?prompt · \"/, \"\").replace(/\"\\. Create amazing.*$/, \"\");\n}\n\n$input.item.json.clean_prompt = promptText;\nreturn $input.item;"
+      },
+      "id": "c1a2f241-7890-449e-b2b9-2c70d4f358a4",
+      "name": "Clean Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1100,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "resource": "chat",
+        "operation": "create",
+        "model": "gpt-4o-mini",
+        "messages": {
+          "messageValues": [
+            {
+              "role": "system",
+              "content": "Ты — профессиональный AI-инженер и владелец премиального Telegram-канала. Твоя задача: переписать сырой промпт для видеогенерации в ценный экспертный пост.\nПользователь должен понять, что он нашел кладезь полезной информации, и подписаться.\n\nСтруктура поста:\n1. Лаконичный и стильный заголовок.\n2. Разбор сцены: кратко опиши, какую атмосферу и кинематографический эффект создает этот промпт.\n3. Текст промпта в блоке кода (```).\n4. Профессиональный Call-to-Action: скажи, что это лишь один из многих рабочих инструментов. Предложи подписаться на канал, чтобы собрать свою библиотеку проверенных промптов для создания профессионального контента.\n5. 2-3 хештега.\nТон: сдержанный, экспертный, уважительный. Используй минимум эмодзи (2-3 на весь пост).\n6. Общее количество предложений не должно быть больше 7-8."
+            },
+            {
+              "role": "user",
+              "content": "={{ $json.clean_prompt }}"
+            }
+          ]
+        }
+      },
+      "id": "a93b21c4-1234-4567-89ab-cdef01234567",
+      "name": "AI SMM Manager",
+      "type": "n8n-nodes-base.openAi",
+      "typeVersion": 1,
+      "position": [
+        1320,
+        220
+      ],
+      "credentials": {
+        "openAiApi": {
+          "id": "YOUR_OPENAI_CREDENTIAL_ID",
+          "name": "OpenAI account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "url": "={{ $('HTML Extract').item.json.video_url }}",
+        "responseFormat": "file",
+        "options": {}
+      },
+      "id": "9b3c4f72-0123-4567-89ab-cdef01234567",
+      "name": "Download Video",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [
+        1540,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "chatId": "={{ $('Telegram Trigger').item.json.message.chat.id }}",
+        "operation": "sendVideo",
+        "video": "={{ $json.data }}",
+        "caption": "={{ $('AI SMM Manager').item.json.message.content || $('AI SMM Manager').item.json.choices[0].message.content }}",
+        "additionalFields": {}
+      },
+      "id": "f8a9e012-1234-5678-90ab-cdef01234567",
+      "name": "Send Video to TG",
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.1,
+      "position": [
+        1760,
+        220
+      ],
+      "credentials": {
+        "telegramApi": {
+          "id": "YOUR_CREDENTIAL_ID",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "connections": {
+    "Telegram Trigger": {
+      "main": [
+        [
+          {
+            "node": "If URL is PromptHero",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "If URL is PromptHero": {
+      "main": [
+        [
+          {
+            "node": "Fetch HTML",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch HTML": {
+      "main": [
+        [
+          {
+            "node": "HTML Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTML Extract": {
+      "main": [
+        [
+          {
+            "node": "Clean Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Clean Prompt": {
+      "main": [
+        [
+          {
+            "node": "AI SMM Manager",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "AI SMM Manager": {
+      "main": [
+        [
+          {
+            "node": "Download Video",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Download Video": {
+      "main": [
+        [
+          {
+            "node": "Send Video to TG",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  }
+}

@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+.venv/
+venv/
+
+# Environment and Secrets
+.env
+.env.*
+!.env.example
+
+# System & IDE
+.DS_Store
+._*
+.idea/
+.vscode/
